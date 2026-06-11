@@ -44,6 +44,10 @@ This compiles and minifies JavaScript, minifies CSS, and copies HTML into `docs/
 
 Builds the project, then serves `docs/` on `http://localhost:9000`.
 
+## Credits
+
+This entire project was created using a local instance of **Qwen3.6 35B A3B**.
+
 ## How It Works
 
 - **Rendering** — A 1000×700 canvas is scaled to fit the viewport. All layout (grid, text, buttons) is computed dynamically from the canvas size.
