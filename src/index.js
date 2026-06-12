@@ -263,13 +263,13 @@ const _LINES = [
 ];
 
 function getEmptyCells(b) {
-  return b.map((_, idx) => b[idx] === '' ? idx : -1).filter(idx => idx >= 0);
+  return b.map((_, i) => b[i] === '' ? i : -1).filter(i => i >= 0);
 }
 
 function checkWin(b) {
-  for (const [a, c, d] of _LINES) {
-    if (b[a] && b[a] === b[c] && b[a] === b[d]) {
-      return { winner: b[a], cells: [a, c, d] };
+  for (const [a, bIdx, cIdx] of _LINES) {
+    if (b[a] && b[a] === b[bIdx] && b[a] === b[cIdx]) {
+      return { winner: b[a], cells: [a, bIdx, cIdx] };
     }
   }
   return null;
