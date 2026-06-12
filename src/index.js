@@ -464,7 +464,7 @@ function updateStatus() {
     status = 'draw';
     announce("Game over. It's a draw!");
   } else {
-    announce(`Player ${currentPlayer}'s turn`);
+    announce(`Player ${currentPlayer === 'X' ? 'O' : 'X'}'s turn`);
   }
 }
 
@@ -515,6 +515,26 @@ function aiMove() {
   drawBoard();
 }
 
+// ── Shared game-action helpers ─────────────────────────
+
+function placePiece(idx) {
+  board[idx] = currentPlayer;
+  playClick();
+  updateStatus();
+  currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+  drawBoard();
+}
+
+function triggerAI() {
+  if (status === 'playing' && currentPlayer === 'O') {
+    aiThinking = true;
+    drawBoard();
+    _aiTimer = setTimeout(() => {
+      aiMove();
+    }, AI_DELAY);
+  }
+}
+
 // ── Initialization ──────────────────────────────────────
 let _aiTimer = 0; // 0 = no timer pending
 
@@ -545,6 +565,7 @@ function init() {
         winner = null;
         winCells = [];
         aiThinking = false;
+        focusedCell = null;
         drawBoard();
         return;
       }
@@ -567,19 +588,8 @@ function init() {
       const idx = cellFromPoint(px, py);
       if (idx < 0 || board[idx] !== '') return;
 
-      board[idx] = currentPlayer;
-      playClick();
-      updateStatus();
-      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-      drawBoard();
-
-      if (status === 'playing' && currentPlayer === 'O') {
-        aiThinking = true;
-        drawBoard();
-        _aiTimer = setTimeout(() => {
-          aiMove();
-        }, AI_DELAY);
-      }
+      placePiece(idx);
+      triggerAI();
     } catch (_) { /* click handler failure — game continues */ }
   };
 
@@ -613,18 +623,8 @@ function init() {
         case '7': case '8': case '9': {
           const idx = parseInt(e.key, 10) - 1;
           if (status === 'playing' && !aiThinking && board[idx] === '') {
-            board[idx] = currentPlayer;
-            playClick();
-            updateStatus();
-            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-            drawBoard();
-            if (status === 'playing' && currentPlayer === 'O') {
-              aiThinking = true;
-              drawBoard();
-              _aiTimer = setTimeout(() => {
-                aiMove();
-              }, AI_DELAY);
-            }
+            placePiece(idx);
+            triggerAI();
           }
           break;
         }
@@ -649,18 +649,8 @@ function init() {
         case 'Enter': case ' ': {
           e.preventDefault();
           if (status === 'playing' && !aiThinking && focusedCell !== null && board[focusedCell] === '') {
-            board[focusedCell] = currentPlayer;
-            playClick();
-            updateStatus();
-            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-            drawBoard();
-            if (status === 'playing' && currentPlayer === 'O') {
-              aiThinking = true;
-              drawBoard();
-              _aiTimer = setTimeout(() => {
-                aiMove();
-              }, AI_DELAY);
-            }
+            placePiece(focusedCell);
+            triggerAI();
           }
           break;
         }
