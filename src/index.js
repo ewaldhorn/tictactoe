@@ -53,6 +53,8 @@ function playWinSound() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const now = audioCtx.currentTime;
     // Ascending major chord arpeggio: C5 → E5 → G5
+    const oscs = [];
+    const gains = [];
     [WIN_FREQ_1, WIN_FREQ_2, WIN_FREQ_3].forEach((freq, i) => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -66,9 +68,12 @@ function playWinSound() {
       gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
       osc.start(start);
       osc.stop(start + dur);
+      oscs.push(osc);
+      gains.push(gain);
     });
     setTimeout(() => {
-      /* cleanup handled by stop */
+      try { for (const o of oscs) o.disconnect(); } catch (_) {}
+      try { for (const g of gains) g.disconnect(); } catch (_) {}
     }, Math.round(WIN_DUR * 1000) + 100);
   } catch (_) { /* audio unavailable — game continues silently */ }
 }
@@ -91,7 +96,7 @@ function playLoseSound() {
     osc.stop(audioCtx.currentTime + LOSE_DUR);
     setTimeout(() => {
       try { osc.disconnect(); gain.disconnect(); } catch (_) {}
-    }, 100);
+    }, Math.round(LOSE_DUR * 1000) + 100);
   } catch (_) { /* audio unavailable — game continues silently */ }
 }
 
@@ -102,6 +107,8 @@ function playDrawSound() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const now = audioCtx.currentTime;
     // Brief ascending tone — neutral "game over" signal
+    const oscs = [];
+    const gains = [];
     [DRAW_FREQ_1, DRAW_FREQ_2].forEach((freq, i) => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -115,7 +122,13 @@ function playDrawSound() {
       gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
       osc.start(start);
       osc.stop(start + dur);
+      oscs.push(osc);
+      gains.push(gain);
     });
+    setTimeout(() => {
+      try { for (const o of oscs) o.disconnect(); } catch (_) {}
+      try { for (const g of gains) g.disconnect(); } catch (_) {}
+    }, Math.round(DRAW_DUR * 1000) + 100);
   } catch (_) { /* audio unavailable — game continues silently */ }
 }
 
@@ -250,7 +263,7 @@ const _LINES = [
 ];
 
 function getEmptyCells(b) {
-  return b.map((v, i) => (v === '' ? i : -1)).filter((i) => i >= 0);
+  return b.map((_, idx) => b[idx] === '' ? idx : -1).filter(idx => idx >= 0);
 }
 
 function checkWin(b) {
@@ -594,7 +607,7 @@ function updateStatus() {
     playDrawSound();
     focusedCell = null;
   } else {
-    announce(`Player ${currentPlayer === 'X' ? 'O' : 'X'}'s turn`);
+    announce(`${currentPlayer === 'X' ? 'O' : 'X'} goes next`);
   }
   if (result) {
     focusedCell = null;
@@ -655,7 +668,9 @@ function placePiece(idx) {
   board[idx] = currentPlayer;
   playClick();
   updateStatus();
-  currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+  if (status !== 'won' && status !== 'draw') {
+    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+  }
   drawBoard();
 }
 
@@ -818,7 +833,7 @@ function init() {
 }
 
 // ── Resize handling ────────────────────────────────────
-let resizeTimer;
+let resizeTimer = 0; // 0 is falsy — clearTimeout(0) is a no-op
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
