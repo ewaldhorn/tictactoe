@@ -141,6 +141,7 @@ const state = {
   handler: null,
   draw: null,
   modeBtn: null,
+  keyHandler: null,
 };
 
 // ── Accessibility: announce game state to screen readers ──
@@ -489,6 +490,7 @@ function aiMove() {
     }
   }
 
+  if (bestMove === undefined) return;
   board[bestMove] = 'O';
   playClick();
   updateStatus();
@@ -658,6 +660,10 @@ function init() {
     } catch (_) { /* keyboard handler failure — game continues */ }
   };
 
+  if (state.keyHandler) {
+    canvas.removeEventListener('keydown', state.keyHandler);
+  }
+  state.keyHandler = keyHandler;
   canvas.addEventListener('keydown', keyHandler);
 }
 
