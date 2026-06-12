@@ -7,6 +7,7 @@ if (!ctx) throw new Error('Could not get 2D context');
 let _audioCtx;
 
 function getAudioCtx() {
+  if (typeof window.AudioContext === 'undefined' && typeof window.webkitAudioContext === 'undefined') return null;
   if (!_audioCtx) {
     _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
@@ -14,18 +15,21 @@ function getAudioCtx() {
 }
 
 function playClick() {
-  const audioCtx = getAudioCtx();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.08);
-  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
-  osc.start(audioCtx.currentTime);
-  osc.stop(audioCtx.currentTime + 0.08);
+  try {
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.08);
+  } catch (_) { /* audio blocked or unavailable — game continues silently */ }
 }
 
 // ── Constants ──────────────────────────────────────────
@@ -37,13 +41,8 @@ const GRID = 3;
 let TOP_MARGIN, BOTTOM_PAD, SIDE_MARGIN, GRID_W, GRID_H, CELL_W, CELL_H, LINE_W;
 
 function computeLayout() {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = W / rect.width;
-  const scaleY = H / rect.height;
-  const scale = Math.min(scaleX, scaleY);
-
-  canvas.style.width = rect.width + 'px';
-  canvas.style.height = rect.height + 'px';
+  canvas.style.width = canvas.getBoundingClientRect().width + 'px';
+  canvas.style.height = canvas.getBoundingClientRect().height + 'px';
   // Keep internal resolution fixed to avoid resize flicker
   // Layout is always computed from W × H
 
@@ -54,7 +53,6 @@ function computeLayout() {
   const sidePad = cw * 0.05;
   const topPad = ch * 0.07;
   const bottomPad = ch * 0.17;
-  BOTTOM_PAD = bottomPad;
   BOTTOM_PAD = bottomPad;
 
   SIDE_MARGIN = sidePad;
@@ -97,7 +95,8 @@ let aiMode = 'doofus'; // 'doofus' | 'terminator'
 let _cellCenter, _cellFromPoint, _drawBackground, _drawGlassPanel, _drawGrid;
 let _drawX, _drawO, _drawBoard, _minimax, _aiMove;
 let _checkWin, _updateStatus;
-let _clickHandler, _draw;
+let _clickHandler;
+let _aiTimer = null;
 
 // Module-level state (replaces hacky draw._btn, canvas._handler, window._tictactoeDraw)
 const state = {
@@ -396,6 +395,7 @@ function init() {
   };
 
   _aiMove = function () {
+    if (status !== 'playing') return;
     const empty = getEmptyCells(board);
     if (empty.length === 0) return;
 
@@ -422,7 +422,7 @@ function init() {
     _updateStatus();
     currentPlayer = 'X';
     aiThinking = false;
-    draw();
+    _drawBoard();
   };
 
   _checkWin = function () {
@@ -449,13 +449,14 @@ function init() {
 
     const btn = state.btn;
     if (btn && px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
+      _aiTimer = null;
       board = Array(9).fill('');
       currentPlayer = 'X';
       status = 'playing';
       winner = null;
       winCells = [];
       aiThinking = false;
-      draw();
+      _drawBoard();
       return;
     }
 
@@ -467,7 +468,7 @@ function init() {
     if (modeBtn && px >= modeBtn.x && px <= modeBtn.x + modeBtn.w && py >= modeBtn.y && py <= modeBtn.y + modeBtn.h) {
       if (board.every(c => c === '')) {
         aiMode = aiMode === 'terminator' ? 'doofus' : 'terminator';
-        draw();
+        _drawBoard();
       }
       return;
     }
@@ -481,26 +482,18 @@ function init() {
     playClick();
     _updateStatus();
     currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-    draw();
+    _drawBoard();
 
     if (status === 'playing' && currentPlayer === 'O') {
       aiThinking = true;
-      draw();
-      setTimeout(() => {
+      _drawBoard();
+      _aiTimer = setTimeout(() => {
         _aiMove();
       }, 300);
     }
   };
 
-  _draw = function () {
-    _drawBoard();
-  };
-
-  function draw() {
-    _draw();
-  }
-
-  state.draw = draw;
+  state.draw = _drawBoard;
 
   // Clean up previous handler before adding new one
   if (state.handler) {
@@ -509,7 +502,12 @@ function init() {
   state.handler = _clickHandler;
   canvas.addEventListener('click', _clickHandler);
 
-  draw();
+  // ── Context loss recovery ──────────────────────────────
+  canvas.addEventListener('webglcontextrestored', () => {
+    init();
+  });
+
+  _drawBoard();
 }
 
 // ── Resize handling ────────────────────────────────────
@@ -526,6 +524,7 @@ window.addEventListener('resize', () => {
 canvas.addEventListener('touchend', (e) => {
   e.preventDefault();
   const touch = e.changedTouches[0];
+  if (!touch || !state.handler) return;
   state.handler({ clientX: touch.clientX, clientY: touch.clientY });
 }, { passive: false });
 
