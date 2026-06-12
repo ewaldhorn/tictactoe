@@ -95,6 +95,30 @@ function playLoseSound() {
   } catch (_) { /* audio unavailable — game continues silently */ }
 }
 
+function playDrawSound() {
+  try {
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    // Brief ascending tone — neutral "game over" signal
+    [DRAW_FREQ_1, DRAW_FREQ_2].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      const start = now + i * 0.1;
+      const dur = DRAW_DUR - i * 0.1;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(DRAW_VOL, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      osc.start(start);
+      osc.stop(start + dur);
+    });
+  } catch (_) { /* audio unavailable — game continues silently */ }
+}
+
 // ── Constants ──────────────────────────────────────────
 const GRID = 3;
 
@@ -129,6 +153,10 @@ const LOSE_FREQ_HIGH = 400;
 const LOSE_FREQ_LOW = 120;
 const LOSE_DUR = 1.2;
 const LOSE_VOL = 0.12;
+const DRAW_FREQ_1 = 587.33; // D5
+const DRAW_FREQ_2 = 698.46; // F5
+const DRAW_DUR = 0.3;
+const DRAW_VOL = 0.1;
 const UI_TEXT_PAD = 40;
 const UI_BTN_PAD = 35;
 const UI_BTN_RADIUS = 8;
@@ -530,7 +558,7 @@ function updateStatus() {
   } else if (board.every((c) => c !== '')) {
     status = 'draw';
     announce("Game over. It's a draw!");
-    playLoseSound();
+    playDrawSound();
     focusedCell = null;
   } else {
     announce(`Player ${currentPlayer === 'X' ? 'O' : 'X'}'s turn`);
