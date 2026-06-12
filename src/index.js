@@ -130,7 +130,7 @@ let status = 'playing';
 let winner = null;
 let winCells = [];
 let aiThinking = false;
-let aiMode = 'doofus'; // 'doofus' | 'terminator'
+let aiMode = 'doofus'; // 'doofus' | 'bringit' | 'terminator'
 
 // Keyboard cursor (null = no cell focused)
 let focusedCell = null;
@@ -322,7 +322,7 @@ function drawO(cx, cy, size) {
 function drawUI() {
   const cw = canvas.width;
   const ch = canvas.height;
-  const uiY = TOP_MARGIN + GRID_H + UI_TEXT_PAD;
+  const uiY = TOP_MARGIN + GRID_H + UI_TEXT_PAD + 5;
   const fontSize = Math.max(18, Math.min(28, CELL_W * UI_FONT_FRAC));
   const btnFontSize = Math.max(13, Math.min(16, CELL_W * BTN_FONT_FRAC));
 
@@ -372,7 +372,7 @@ function drawUI() {
   state.btn = { x: btnX, y: btnY, w: btnW, h: btnH };
 
   // ── AI Mode Selector (bottom-right) ──
-  const modeLabel = aiMode === 'terminator' ? 'Terminator' : 'Doofus';
+  const modeLabel = aiMode === 'terminator' ? 'Terminator' : aiMode === 'bringit' ? 'Bring it on' : 'Doofus';
   const modeText = 'AI MODE: ' + modeLabel;
   const modeFontSize = Math.max(11, Math.min(14, CELL_W * MODE_FONT_FRAC));
   const modeTextW = ctx.measureText(modeText).width;
@@ -476,6 +476,22 @@ function aiMove() {
   let bestMove;
   if (aiMode === 'doofus') {
     bestMove = empty[Math.floor(Math.random() * empty.length)];
+  } else if (aiMode === 'bringit') {
+    // Uses minimax but 50% of the time picks a random move instead
+    if (Math.random() < 0.5) {
+      bestMove = empty[Math.floor(Math.random() * empty.length)];
+    } else {
+      let bestScore = -Infinity;
+      for (const i of empty) {
+        board[i] = 'O';
+        const score = minimax(board, false);
+        board[i] = '';
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = i;
+        }
+      }
+    }
   } else {
     // Terminator: perfect minimax
     let bestScore = -Infinity;
@@ -540,7 +556,7 @@ function init() {
       const modeBtn = state.modeBtn;
       if (modeBtn && px >= modeBtn.x && px <= modeBtn.x + modeBtn.w && py >= modeBtn.y && py <= modeBtn.y + modeBtn.h) {
         if (board.every(c => c === '')) {
-          aiMode = aiMode === 'terminator' ? 'doofus' : 'terminator';
+          aiMode = aiMode === 'terminator' ? 'doofus' : aiMode === 'doofus' ? 'bringit' : 'terminator';
           drawBoard();
         }
         return;
@@ -651,7 +667,7 @@ function init() {
         // Escape or M toggles AI mode (only on empty board)
         case 'Escape': case 'm': case 'M': {
           if (board.every(c => c === '')) {
-            aiMode = aiMode === 'terminator' ? 'doofus' : 'terminator';
+            aiMode = aiMode === 'terminator' ? 'doofus' : aiMode === 'doofus' ? 'bringit' : 'terminator';
             drawBoard();
           }
           break;
