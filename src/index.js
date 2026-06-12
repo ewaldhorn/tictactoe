@@ -142,6 +142,7 @@ const state = {
   draw: null,
   modeBtn: null,
   keyHandler: null,
+  _touchHandler: null,
 };
 
 // ── Accessibility: announce game state to screen readers ──
@@ -174,11 +175,12 @@ function checkWin(b) {
 function minimax(b, isMaximizing, depth = 0) {
   const result = checkWin(b);
   if (result) return result.winner === 'O' ? 10 - depth : depth - 10;
-  if (getEmptyCells(b).length === 0) return 0;
+  const empty = getEmptyCells(b);
+  if (empty.length === 0) return 0;
 
   if (isMaximizing) {
     let best = -Infinity;
-    for (const i of getEmptyCells(b)) {
+    for (const i of empty) {
       b[i] = 'O';
       best = Math.max(best, minimax(b, false, depth + 1));
       b[i] = '';
@@ -186,7 +188,7 @@ function minimax(b, isMaximizing, depth = 0) {
     return best;
   } else {
     let best = Infinity;
-    for (const i of getEmptyCells(b)) {
+    for (const i of empty) {
       b[i] = 'X';
       best = Math.min(best, minimax(b, true, depth + 1));
       b[i] = '';
@@ -506,7 +508,6 @@ function aiMove() {
     }
   }
 
-  if (bestMove === undefined) return;
   board[bestMove] = 'O';
   playClick();
   updateStatus();
@@ -539,6 +540,8 @@ function triggerAI() {
 let _aiTimer = 0; // 0 = no timer pending
 
 function init() {
+  clearTimeout(_aiTimer);
+  _aiTimer = 0;
   computeLayout();
 
   // Full render (rebuilds state.btn, state.modeBtn)
