@@ -34,7 +34,7 @@ const H = 700;
 const GRID = 3;
 
 // Internal layout (computed from canvas size)
-let TOP_MARGIN, SIDE_MARGIN, GRID_W, GRID_H, CELL_W, CELL_H, LINE_W;
+let TOP_MARGIN, BOTTOM_PAD, SIDE_MARGIN, GRID_W, GRID_H, CELL_W, CELL_H, LINE_W;
 
 function computeLayout() {
   const rect = canvas.getBoundingClientRect();
@@ -54,6 +54,8 @@ function computeLayout() {
   const sidePad = cw * 0.05;
   const topPad = ch * 0.07;
   const bottomPad = ch * 0.17;
+  BOTTOM_PAD = bottomPad;
+  BOTTOM_PAD = bottomPad;
 
   SIDE_MARGIN = sidePad;
   TOP_MARGIN = topPad;
@@ -89,6 +91,7 @@ let status = 'playing';
 let winner = null;
 let winCells = [];
 let aiThinking = false;
+let aiMode = 'doofus'; // 'doofus' | 'terminator'
 
 // ── Layout-dependent helpers (recalculated on resize) ──
 let _cellCenter, _cellFromPoint, _drawBackground, _drawGlassPanel, _drawGrid;
@@ -350,6 +353,42 @@ function init() {
     ctx.fillText('Reset', cw / 2, BTN_Y + BTN_H * 0.65);
 
     state.btn = { x: BTN_X, y: BTN_Y, w: BTN_W, h: BTN_H };
+
+    // ── AI Mode Selector (bottom-right) ──────────────────
+    const modeLabel = aiMode === 'terminator' ? 'Terminator' : 'Doofus';
+    const modeText = 'AI MODE: ' + modeLabel;
+    const modeFontSize = Math.max(11, Math.min(14, CELL_W * 0.07));
+    const modePadX = 14;
+    const modePadY = 8;
+    const modeTextW = ctx.measureText(modeText).width;
+    const modeW = modeTextW + modePadX * 2;
+    const modeH = Math.max(26, ch * 0.04);
+
+    const modeX = cw - SIDE_MARGIN - modeW;
+    const modeY = ch - BOTTOM_PAD + 20;
+    const modeR = 6;
+
+    ctx.save();
+    ctx.fillStyle = COLORS.btnBg;
+    ctx.strokeStyle = COLORS.btnBorder;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(modeX + modeR, modeY);
+    ctx.arcTo(modeX + modeW, modeY, modeX + modeW, modeY + modeH, modeR);
+    ctx.arcTo(modeX + modeW, modeY + modeH, modeX, modeY + modeH, modeR);
+    ctx.arcTo(modeX, modeY + modeH, modeX, modeY, modeR);
+    ctx.arcTo(modeX, modeY, modeX + modeW, modeY, modeR);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = COLORS.btnText;
+    ctx.font = `${modeFontSize}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(modeText, modeX + modeW / 2, modeY + modeH * 0.65);
+
+    state.modeBtn = { x: modeX, y: modeY, w: modeW, h: modeH };
   };
 
   _minimax = function (b, isMaximizing) {
@@ -360,16 +399,21 @@ function init() {
     const empty = getEmptyCells(board);
     if (empty.length === 0) return;
 
-    let bestScore = -Infinity;
-    let bestMove = empty[0];
-
-    for (const i of empty) {
-      board[i] = 'O';
-      const score = _minimax(board, false);
-      board[i] = '';
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = i;
+    let bestMove;
+    if (aiMode === 'doofus') {
+      // Random move — sometimes blunders, sometimes lucky
+      bestMove = empty[Math.floor(Math.random() * empty.length)];
+    } else {
+      // Terminator: perfect minimax
+      let bestScore = -Infinity;
+      for (const i of empty) {
+        board[i] = 'O';
+        const score = _minimax(board, false);
+        board[i] = '';
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = i;
+        }
       }
     }
 
@@ -417,6 +461,17 @@ function init() {
 
     // P0: Block clicks during AI thinking
     if (aiThinking) return;
+
+    // Handle mode selector click (only if no moves have been made)
+    const modeBtn = state.modeBtn;
+    if (modeBtn && px >= modeBtn.x && px <= modeBtn.x + modeBtn.w && py >= modeBtn.y && py <= modeBtn.y + modeBtn.h) {
+      if (board.every(c => c === '')) {
+        aiMode = aiMode === 'terminator' ? 'doofus' : 'terminator';
+        draw();
+      }
+      return;
+    }
+
     if (status !== 'playing') return;
 
     const idx = _cellFromPoint(px, py);
