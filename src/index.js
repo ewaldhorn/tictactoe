@@ -599,7 +599,7 @@ function updateStatus() {
     winner = result.winner;
     winCells = result.cells;
     announce(`Game over. ${winner} wins!`);
-    currentPlayer = winner; // keep current player in sync with the winner
+    currentPlayer = null; // game has ended, no current player
     if (winner === 'X') playWinSound();
     else playLoseSound();
   } else if (board.every((c) => c !== '')) {
@@ -698,6 +698,9 @@ function init() {
 
   // Announce initial state
   announce("Tic Tac Toe. Your turn (X).");
+
+  // Reset disabled-mode flash when game is reset
+  modeBtnFlashUntil = 0;
 
   // ── Click handler ────────────────────────────────────
   const clickHandler = function (e) {
@@ -830,7 +833,7 @@ function init() {
   canvas.addEventListener('keydown', keyHandler);
 
   // Focus canvas for keyboard controls
-  canvas.focus();
+  try { canvas.focus(); } catch (_) {}
 }
 
 // ── Resize handling ────────────────────────────────────
