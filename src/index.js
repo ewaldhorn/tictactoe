@@ -46,6 +46,55 @@ function playClick() {
   } catch (_) { /* audio unavailable — game continues silently */ }
 }
 
+function playWinSound() {
+  try {
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    // Ascending major chord arpeggio: C5 → E5 → G5
+    [WIN_FREQ_1, WIN_FREQ_2, WIN_FREQ_3].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      const start = now + i * 0.08;
+      const dur = WIN_DUR - i * 0.08;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(WIN_VOL, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      osc.start(start);
+      osc.stop(start + dur);
+    });
+    setTimeout(() => {
+      /* cleanup handled by stop */
+    }, Math.round(WIN_DUR * 1000) + 100);
+  } catch (_) { /* audio unavailable — game continues silently */ }
+}
+
+function playLoseSound() {
+  try {
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(LOSE_FREQ_HIGH, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(LOSE_FREQ_LOW, audioCtx.currentTime + LOSE_DUR);
+    gain.gain.setValueAtTime(LOSE_VOL, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + LOSE_DUR);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + LOSE_DUR);
+    setTimeout(() => {
+      try { osc.disconnect(); gain.disconnect(); } catch (_) {}
+    }, 100);
+  } catch (_) { /* audio unavailable — game continues silently */ }
+}
+
 // ── Constants ──────────────────────────────────────────
 const GRID = 3;
 
@@ -69,6 +118,17 @@ const AUDIO_FREQ_HIGH = 800;
 const AUDIO_FREQ_LOW = 400;
 const AUDIO_DUR = 0.08;
 const AUDIO_VOL = 0.15;
+
+// Win/Lose audio constants
+const WIN_FREQ_1 = 523.25;  // C5
+const WIN_FREQ_2 = 659.25;  // E5
+const WIN_FREQ_3 = 783.99;  // G5
+const WIN_DUR = 0.45;
+const WIN_VOL = 0.12;
+const LOSE_FREQ_HIGH = 400;
+const LOSE_FREQ_LOW = 120;
+const LOSE_DUR = 1.2;
+const LOSE_VOL = 0.12;
 const UI_TEXT_PAD = 40;
 const UI_BTN_PAD = 35;
 const UI_BTN_RADIUS = 8;
@@ -465,9 +525,12 @@ function updateStatus() {
     winner = result.winner;
     winCells = result.cells;
     announce(`Game over. ${winner} wins!`);
+    if (winner === 'X') playWinSound();
+    else playLoseSound();
   } else if (board.every((c) => c !== '')) {
     status = 'draw';
     announce("Game over. It's a draw!");
+    playLoseSound();
     focusedCell = null;
   } else {
     announce(`Player ${currentPlayer === 'X' ? 'O' : 'X'}'s turn`);
