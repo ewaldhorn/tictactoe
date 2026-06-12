@@ -1,7 +1,13 @@
 const canvas = document.getElementById('canvas');
-if (!canvas) throw new Error('Canvas element not found');
+if (!canvas) {
+  document.body.innerHTML = '<p style="color:#fff;text-align:center;padding:40px;">Canvas element not found.</p>';
+  throw new Error('Canvas element not found');
+}
 const ctx = canvas.getContext('2d');
-if (!ctx) throw new Error('Could not get 2D context');
+if (!ctx) {
+  document.body.innerHTML = '<p style="color:#fff;text-align:center;padding:40px;">2D canvas context not supported.</p>';
+  throw new Error('Could not get 2D context');
+}
 
 // ── Audio ──────────────────────────────────────────────
 let _audioCtx;
@@ -9,7 +15,12 @@ let _audioCtx;
 function getAudioCtx() {
   if (typeof window.AudioContext === 'undefined' && typeof window.webkitAudioContext === 'undefined') return null;
   if (!_audioCtx) {
-    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (_) {
+      _audioCtx = null;
+      return null;
+    }
   }
   return _audioCtx;
 }
@@ -18,17 +29,23 @@ function playClick() {
   try {
     const audioCtx = getAudioCtx();
     if (!audioCtx) return;
+    // Resume suspended context (browsers suspend until user gesture)
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.type = 'sine';
     osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.08);
+    osc.frequency.exponentialRampToValueTime(400, audioCtx.currentTime + 0.08);
     gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
     osc.start(audioCtx.currentTime);
     osc.stop(audioCtx.currentTime + 0.08);
+    // Disconnect nodes to prevent garbage accumulation
+    setTimeout(() => {
+      try { osc.disconnect(); gain.disconnect(); } catch (_) {}
+    }, 100);
   } catch (_) { /* audio blocked or unavailable — game continues silently */ }
 }
 
@@ -43,12 +60,13 @@ let TOP_MARGIN, BOTTOM_PAD, SIDE_MARGIN, GRID_W, GRID_H, CELL_W, CELL_H, LINE_W;
 function computeLayout() {
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.scale(dpr, dpr);
-
   const cw = rect.width;
   const ch = rect.height;
+  // Guard: skip layout if canvas has no visible size (e.g., display:none)
+  if (cw <= 0 || ch <= 0) return;
+  canvas.width = cw * dpr;
+  canvas.height = ch * dpr;
+  ctx.scale(dpr, dpr);
 
   // margins scale with canvas
   const sidePad = cw * 0.05;
@@ -442,55 +460,57 @@ function init() {
   };
 
   _clickHandler = function (e) {
-    const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
+    try {
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
 
-    const btn = state.btn;
-    if (btn && px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
-      clearTimeout(_aiTimer);
-      _aiTimer = null;
-      board = Array(9).fill('');
-      currentPlayer = 'X';
-      status = 'playing';
-      winner = null;
-      winCells = [];
-      aiThinking = false;
-      _drawBoard();
-      return;
-    }
-
-    // P0: Block clicks during AI thinking
-    if (aiThinking) return;
-
-    // Handle mode selector click (only if no moves have been made)
-    const modeBtn = state.modeBtn;
-    if (modeBtn && px >= modeBtn.x && px <= modeBtn.x + modeBtn.w && py >= modeBtn.y && py <= modeBtn.y + modeBtn.h) {
-      if (board.every(c => c === '')) {
-        aiMode = aiMode === 'terminator' ? 'doofus' : 'terminator';
+      const btn = state.btn;
+      if (btn && px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
+        clearTimeout(_aiTimer);
+        _aiTimer = null;
+        board = Array(9).fill('');
+        currentPlayer = 'X';
+        status = 'playing';
+        winner = null;
+        winCells = [];
+        aiThinking = false;
         _drawBoard();
+        return;
       }
-      return;
-    }
 
-    if (status !== 'playing') return;
+      // P0: Block clicks during AI thinking
+      if (aiThinking) return;
 
-    const idx = _cellFromPoint(px, py);
-    if (idx < 0 || board[idx] !== '') return;
+      // Handle mode selector click (only if no moves have been made)
+      const modeBtn = state.modeBtn;
+      if (modeBtn && px >= modeBtn.x && px <= modeBtn.x + modeBtn.w && py >= modeBtn.y && py <= modeBtn.y + modeBtn.h) {
+        if (board.every(c => c === '')) {
+          aiMode = aiMode === 'terminator' ? 'doofus' : 'terminator';
+          _drawBoard();
+        }
+        return;
+      }
 
-    board[idx] = currentPlayer;
-    playClick();
-    _updateStatus();
-    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-    _drawBoard();
+      if (status !== 'playing') return;
 
-    if (status === 'playing' && currentPlayer === 'O') {
-      aiThinking = true;
+      const idx = _cellFromPoint(px, py);
+      if (idx < 0 || board[idx] !== '') return;
+
+      board[idx] = currentPlayer;
+      playClick();
+      _updateStatus();
+      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
       _drawBoard();
-      _aiTimer = setTimeout(() => {
-        _aiMove();
-      }, 300);
-    }
+
+      if (status === 'playing' && currentPlayer === 'O') {
+        aiThinking = true;
+        _drawBoard();
+        _aiTimer = setTimeout(() => {
+          _aiMove();
+        }, 300);
+      }
+    } catch (_) { /* click handler failure — game continues */ }
   };
 
   state.draw = _drawBoard;
@@ -516,8 +536,10 @@ let resizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    computeLayout();
-    if (state.draw) state.draw();
+    try {
+      computeLayout();
+      if (state.draw) state.draw();
+    } catch (_) { /* layout failure — game continues with last known layout */ }
   }, 100);
 });
 
