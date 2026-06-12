@@ -44,11 +44,11 @@ function computeLayout() {
 
   canvas.style.width = rect.width + 'px';
   canvas.style.height = rect.height + 'px';
-  canvas.width = Math.round(rect.width * scale);
-  canvas.height = Math.round(rect.height * scale);
+  // Keep internal resolution fixed to avoid resize flicker
+  // Layout is always computed from W × H
 
-  const cw = canvas.width;
-  const ch = canvas.height;
+  const cw = W;
+  const ch = H;
 
   // margins scale with canvas
   const sidePad = cw * 0.05;
@@ -92,10 +92,63 @@ let aiThinking = false;
 
 // ── Layout-dependent helpers (recalculated on resize) ──
 let _cellCenter, _cellFromPoint, _drawBackground, _drawGlassPanel, _drawGrid;
-let _drawX, _drawO, _drawBoard, _getEmptyCells, _minimax, _aiMove;
-let _checkWinFor, _getEmptyCellsFor, _LINES, _checkWin, _updateStatus;
+let _drawX, _drawO, _drawBoard, _minimax, _aiMove;
+let _checkWin, _updateStatus;
 let _clickHandler, _draw;
 
+// Module-level state (replaces hacky draw._btn, canvas._handler, window._tictactoeDraw)
+const state = {
+  btn: null,
+  handler: null,
+  draw: null,
+};
+
+// ── Shared utilities ───────────────────────────────────
+const _LINES = [
+  [0, 1, 2], [3, 4, 5], [6, 7, 8],
+  [0, 3, 6], [1, 4, 7], [2, 5, 8],
+  [0, 4, 8], [2, 4, 6],
+];
+
+function getEmptyCells(b) {
+  return b.map((v, i) => (v === '' ? i : -1)).filter((i) => i >= 0);
+}
+
+function checkWin(b) {
+  for (const [a, c, d] of _LINES) {
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) {
+      return { winner: b[a], cells: [a, c, d] };
+    }
+  }
+  return null;
+}
+
+// Minimax with depth-aware scoring (prefers faster wins, slower losses)
+function minimax(b, isMaximizing, depth = 0) {
+  const result = checkWin(b);
+  if (result) return result.winner === 'O' ? 10 - depth : depth - 10;
+  if (getEmptyCells(b).length === 0) return 0;
+
+  if (isMaximizing) {
+    let best = -Infinity;
+    for (const i of getEmptyCells(b)) {
+      b[i] = 'O';
+      best = Math.max(best, minimax(b, false, depth + 1));
+      b[i] = '';
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const i of getEmptyCells(b)) {
+      b[i] = 'X';
+      best = Math.min(best, minimax(b, true, depth + 1));
+      b[i] = '';
+    }
+    return best;
+  }
+}
+
+// ── Initialization ──────────────────────────────────────
 function init() {
   computeLayout();
 
@@ -117,8 +170,8 @@ function init() {
   };
 
   _drawBackground = function () {
-    const cw = canvas.width;
-    const ch = canvas.height;
+    const cw = W;
+    const ch = H;
     const grad = ctx.createLinearGradient(0, 0, cw, ch);
     grad.addColorStop(0, COLORS.bg1);
     grad.addColorStop(0.5, COLORS.bg2);
@@ -221,8 +274,8 @@ function init() {
   };
 
   _drawBoard = function () {
-    const cw = canvas.width;
-    const ch = canvas.height;
+    const cw = W;
+    const ch = H;
 
     _drawBackground();
     _drawGlassPanel();
@@ -296,57 +349,15 @@ function init() {
     ctx.textAlign = 'center';
     ctx.fillText('Reset', cw / 2, BTN_Y + BTN_H * 0.65);
 
-    draw._btn = { x: BTN_X, y: BTN_Y, w: BTN_W, h: BTN_H };
+    state.btn = { x: BTN_X, y: BTN_Y, w: BTN_W, h: BTN_H };
   };
-
-  _getEmptyCells = function () {
-    return board.map((v, i) => (v === '' ? i : -1)).filter((i) => i >= 0);
-  };
-
-  _checkWinFor = function (b) {
-    for (const [a, c, d] of _LINES) {
-      if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
-    }
-    return null;
-  };
-
-  _getEmptyCellsFor = function (b) {
-    return b.map((v, i) => (v === '' ? i : -1)).filter((i) => i >= 0);
-  };
-
-  _LINES = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8],
-    [0, 3, 6], [1, 4, 7], [2, 5, 8],
-    [0, 4, 8], [2, 4, 6],
-  ];
 
   _minimax = function (b, isMaximizing) {
-    const result = _checkWinFor(b);
-    if (result === 'O') return 10;
-    if (result === 'X') return -10;
-    if (_getEmptyCellsFor(b).length === 0) return 0;
-
-    if (isMaximizing) {
-      let best = -Infinity;
-      for (const i of _getEmptyCellsFor(b)) {
-        b[i] = 'O';
-        best = Math.max(best, _minimax(b, false));
-        b[i] = '';
-      }
-      return best;
-    } else {
-      let best = Infinity;
-      for (const i of _getEmptyCellsFor(b)) {
-        b[i] = 'X';
-        best = Math.min(best, _minimax(b, true));
-        b[i] = '';
-      }
-      return best;
-    }
+    return minimax(b, isMaximizing);
   };
 
   _aiMove = function () {
-    const empty = _getEmptyCells();
+    const empty = getEmptyCells(board);
     if (empty.length === 0) return;
 
     let bestScore = -Infinity;
@@ -371,13 +382,7 @@ function init() {
   };
 
   _checkWin = function () {
-    for (const line of _LINES) {
-      const [a, b, c] = line;
-      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return { winner: board[a], cells: line };
-      }
-    }
-    return null;
+    return checkWin(board);
   };
 
   _updateStatus = function () {
@@ -393,12 +398,12 @@ function init() {
 
   _clickHandler = function (e) {
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
     const px = (e.clientX - rect.left) * scaleX;
     const py = (e.clientY - rect.top) * scaleY;
 
-    const btn = draw._btn;
+    const btn = state.btn;
     if (btn && px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
       board = Array(9).fill('');
       currentPlayer = 'X';
@@ -410,6 +415,8 @@ function init() {
       return;
     }
 
+    // P0: Block clicks during AI thinking
+    if (aiThinking) return;
     if (status !== 'playing') return;
 
     const idx = _cellFromPoint(px, py);
@@ -434,16 +441,17 @@ function init() {
     _drawBoard();
   };
 
-  // draw must be defined before closures reference it
   function draw() {
     _draw();
   }
 
-  // expose draw globally for resize handler
-  window._tictactoeDraw = draw;
+  state.draw = draw;
 
-  canvas.removeEventListener('click', canvas._handler);
-  canvas._handler = _clickHandler;
+  // Clean up previous handler before adding new one
+  if (state.handler) {
+    canvas.removeEventListener('click', state.handler);
+  }
+  state.handler = _clickHandler;
   canvas.addEventListener('click', _clickHandler);
 
   draw();
@@ -455,9 +463,16 @@ window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     computeLayout();
-    if (window._tictactoeDraw) window._tictactoeDraw();
+    if (state.draw) state.draw();
   }, 100);
 });
+
+// ── Touch support ──────────────────────────────────────
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  const touch = e.changedTouches[0];
+  state.handler({ clientX: touch.clientX, clientY: touch.clientY });
+}, { passive: false });
 
 // ── Entry ──────────────────────────────────────────────
 init();
