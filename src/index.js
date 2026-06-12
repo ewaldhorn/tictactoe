@@ -14,7 +14,7 @@ let _audioCtx;
 
 function getAudioCtx() {
   if (typeof window.AudioContext === 'undefined' && typeof window.webkitAudioContext === 'undefined') return null;
-  if (!_audioCtx) {
+  if (!_audioCtx || _audioCtx.state === 'closed') {
     try {
       _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     } catch (_) {
@@ -182,8 +182,11 @@ const MODE_FONT_FRAC = 0.07;
 const AI_DELAY = 300;
 
 // ── Layout computation ─────────────────────────────────
+const AI_MODES = ['doofus', 'bringit', 'terminator'];
+
 function cycleAiMode() {
-  aiMode = aiMode === 'terminator' ? 'doofus' : aiMode === 'doofus' ? 'bringit' : 'terminator';
+  const idx = AI_MODES.indexOf(aiMode);
+  aiMode = AI_MODES[(idx + 1) % AI_MODES.length];
 }
 
 function computeLayout() {
@@ -234,7 +237,7 @@ let status = 'playing';
 let winner = null;
 let winCells = [];
 let aiThinking = false;
-let aiMode = 'doofus'; // 'doofus' | 'bringit' | 'terminator'
+let aiMode = AI_MODES[0]; // 'doofus' | 'bringit' | 'terminator'
 
 // Keyboard cursor (null = no cell focused)
 let focusedCell = null;
@@ -262,40 +265,40 @@ const _LINES = [
   [0, 4, 8], [2, 4, 6],
 ];
 
-function getEmptyCells(b) {
-  return b.map((_, i) => b[i] === '' ? i : -1).filter(i => i >= 0);
+function getEmptyCells(board) {
+  return board.map((_, i) => board[i] === '' ? i : -1).filter(i => i >= 0);
 }
 
-function checkWin(b) {
+function checkWin(board) {
   for (const [a, bIdx, cIdx] of _LINES) {
-    if (b[a] && b[a] === b[bIdx] && b[a] === b[cIdx]) {
-      return { winner: b[a], cells: [a, bIdx, cIdx] };
+    if (board[a] && board[a] === board[bIdx] && board[a] === board[cIdx]) {
+      return { winner: board[a], cells: [a, bIdx, cIdx] };
     }
   }
   return null;
 }
 
 // Minimax with depth-aware scoring (prefers faster wins, slower losses)
-function minimax(b, isMaximizing, depth = 0) {
-  const result = checkWin(b);
+function minimax(board, isMaximizing, depth = 0) {
+  const result = checkWin(board);
   if (result) return result.winner === 'O' ? 10 - depth : depth - 10;
-  const empty = getEmptyCells(b);
+  const empty = getEmptyCells(board);
   if (empty.length === 0) return 0;
 
   if (isMaximizing) {
     let best = -Infinity;
     for (const i of empty) {
-      b[i] = 'O';
-      best = Math.max(best, minimax(b, false, depth + 1));
-      b[i] = '';
+      board[i] = 'O';
+      best = Math.max(best, minimax(board, false, depth + 1));
+      board[i] = '';
     }
     return best;
   } else {
     let best = Infinity;
     for (const i of empty) {
-      b[i] = 'X';
-      best = Math.min(best, minimax(b, true, depth + 1));
-      b[i] = '';
+      board[i] = 'X';
+      best = Math.min(best, minimax(board, true, depth + 1));
+      board[i] = '';
     }
     return best;
   }
@@ -361,12 +364,7 @@ function drawGlassPanel() {
 
   ctx.fillStyle = COLORS.glass;
   ctx.beginPath();
-  ctx.moveTo(x + GLASS_RADIUS, y);
-  ctx.arcTo(x + w, y, x + w, y + h, GLASS_RADIUS);
-  ctx.arcTo(x + w, y + h, x, y + h, GLASS_RADIUS);
-  ctx.arcTo(x, y + h, x, y, GLASS_RADIUS);
-  ctx.arcTo(x, y, x + w, y, GLASS_RADIUS);
-  ctx.closePath();
+  ctx.roundRect(x, y, w, h, GLASS_RADIUS);
   ctx.fill();
 
   ctx.strokeStyle = COLORS.glassBorder;
@@ -426,11 +424,6 @@ function drawO(cx, cy, size) {
 
 // ── UI rendering (sets state.btn / state.modeBtn) ─────
 function drawUI() {
-  // Auto-expire disabled flash
-  if (modeBtnFlashUntil > Date.now()) {
-    modeBtnFlashUntil = 0;
-  }
-
   const cw = canvas.width;
   const ch = canvas.height;
   const uiY = TOP_MARGIN + GRID_H + UI_TEXT_PAD + 5;
@@ -689,7 +682,18 @@ function triggerAI() {
 let _aiTimer = 0; // 0 = no timer pending
 let modeBtnFlashUntil = 0; // timestamp until which to show disabled flash
 
+// ── Resize handling ────────────────────────────────────
+let _initialised = false;
+let resizeTimer = 0; // 0 is falsy — clearTimeout(0) is a no-op
+
 function init() {
+  if (_initialised) {
+    // Re-init (e.g. from resize): don't steal focus
+  } else {
+    _initialised = true;
+    try { canvas.focus(); } catch (_) {}
+  }
+
   clearTimeout(_aiTimer);
   computeLayout();
 
@@ -831,13 +835,8 @@ function init() {
   }
   state.keyHandler = keyHandler;
   canvas.addEventListener('keydown', keyHandler);
-
-  // Focus canvas for keyboard controls
-  try { canvas.focus(); } catch (_) {}
 }
 
-// ── Resize handling ────────────────────────────────────
-let resizeTimer = 0; // 0 is falsy — clearTimeout(0) is a no-op
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
