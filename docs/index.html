@@ -4,15 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="A modern, responsive Tic Tac Toe game with AI opponent. Play against the computer in your browser.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;">
   <title>Tic Tac Toe</title>
   <link rel="stylesheet" href="style.min.css">
 </head>
 <body>
+  <header>
+    <h1>Tic Tac Toe</h1>
+  </header>
   <main>
-    <canvas id="canvas" aria-label="Tic Tac Toe game board" role="application">
-    <p>Please enable JavaScript to play.</p>
-  </canvas>
+  <div class="canvas-wrapper">
+    <canvas id="canvas" aria-label="Tic Tac Toe game board" tabindex="0"></canvas>
+  </div>
+  <noscript><p>Please enable JavaScript to play.</p></noscript>
   <div id="game-status" aria-live="polite" class="sr-only"></div>
   </main>
   <script src="index.min.js" defer></script>

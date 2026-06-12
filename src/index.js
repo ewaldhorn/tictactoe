@@ -87,10 +87,9 @@ function computeLayout() {
   const cw = rect.width;
   const ch = rect.height;
   if (cw <= 0 || ch <= 0) return;
-  canvas.width = cw * dpr;
-  canvas.height = ch * dpr;
+  canvas.width = Math.round(cw);
+  canvas.height = Math.round(ch);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.scale(dpr, dpr);
 
   const sidePad = cw * 0.05;
   const topPad = ch * 0.07;
@@ -132,6 +131,9 @@ let winner = null;
 let winCells = [];
 let aiThinking = false;
 let aiMode = 'doofus'; // 'doofus' | 'terminator'
+
+// Keyboard cursor (null = no cell focused)
+let focusedCell = null;
 
 // Module-level UI state
 const state = {
@@ -329,7 +331,7 @@ function drawUI() {
 
   let msg;
   if (status === 'won') {
-    msg = `Player ${winner} Wins!`;
+    msg = winner === 'X' ? 'You Win!' : 'I Win!';
   } else if (status === 'draw') {
     msg = "It's a Draw!";
   } else if (currentPlayer === 'O') {
@@ -377,11 +379,11 @@ function drawUI() {
   const modeH = Math.max(26, ch * 0.04);
 
   const modeX = cw - SIDE_MARGIN - modeW;
-  const modeY = ch - BOTTOM_PAD + 20;
+  const modeY = ch - BOTTOM_PAD + modeH / 2 + 10;
 
   ctx.save();
-  ctx.fillStyle = COLORS.btnBg;
-  ctx.strokeStyle = COLORS.btnBorder;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(modeX + MODE_RADIUS, modeY);
@@ -423,6 +425,18 @@ function drawPieces() {
       ctx.restore();
     }
 
+    // Keyboard cursor highlight (only when canvas has focus and no win)
+    if (focusedCell !== null && focusedCell === i && winCells.length === 0 && board[i] === '') {
+      const cellX = SIDE_MARGIN + (i % GRID) * CELL_W;
+      const cellY = TOP_MARGIN + Math.floor(i / GRID) * CELL_H;
+      ctx.save();
+      ctx.strokeStyle = COLORS.highlightBorder;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(cellX + 2, cellY + 2, CELL_W - 4, CELL_H - 4);
+      ctx.restore();
+    }
+
     if (board[i] === 'X') drawX(x, y, size);
     else drawO(x, y, size);
   }
@@ -444,7 +458,7 @@ function updateStatus() {
     status = 'won';
     winner = result.winner;
     winCells = result.cells;
-    announce(`Game over. Player ${winner} wins!`);
+    announce(`Game over. ${winner} wins!`);
   } else if (board.every((c) => c !== '')) {
     status = 'draw';
     announce("Game over. It's a draw!");
@@ -570,6 +584,81 @@ function init() {
   };
   canvas.addEventListener('touchend', _touchHandler, { passive: false });
   state._touchHandler = _touchHandler;
+
+  // ── Keyboard support ──────────────────────────────────
+  const keyHandler = (e) => {
+    try {
+      switch (e.key) {
+        // Number keys 1–9 place a piece (row-major: 1→cell 0, 9→cell 8)
+        case '1': case '2': case '3':
+        case '4': case '5': case '6':
+        case '7': case '8': case '9': {
+          const idx = parseInt(e.key, 10) - 1;
+          if (status === 'playing' && !aiThinking && board[idx] === '') {
+            board[idx] = currentPlayer;
+            playClick();
+            updateStatus();
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            drawBoard();
+            if (status === 'playing' && currentPlayer === 'O') {
+              aiThinking = true;
+              drawBoard();
+              _aiTimer = setTimeout(() => {
+                aiMove();
+              }, AI_DELAY);
+            }
+          }
+          break;
+        }
+        // Arrow keys move the cursor
+        case 'ArrowUp': case 'ArrowDown':
+        case 'ArrowLeft': case 'ArrowRight': {
+          e.preventDefault();
+          if (focusedCell === null) {
+            focusedCell = 0;
+          } else {
+            const row = Math.floor(focusedCell / GRID);
+            const col = focusedCell % GRID;
+            if (e.key === 'ArrowUp') focusedCell = (row > 0) ? focusedCell - GRID : focusedCell;
+            else if (e.key === 'ArrowDown') focusedCell = (row < GRID - 1) ? focusedCell + GRID : focusedCell;
+            else if (e.key === 'ArrowLeft') focusedCell = (col > 0) ? focusedCell - 1 : focusedCell;
+            else if (e.key === 'ArrowRight') focusedCell = (col < GRID - 1) ? focusedCell + 1 : focusedCell;
+          }
+          drawBoard();
+          break;
+        }
+        // Enter/Space places at focused cell
+        case 'Enter': case ' ': {
+          e.preventDefault();
+          if (status === 'playing' && !aiThinking && focusedCell !== null && board[focusedCell] === '') {
+            board[focusedCell] = currentPlayer;
+            playClick();
+            updateStatus();
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            drawBoard();
+            if (status === 'playing' && currentPlayer === 'O') {
+              aiThinking = true;
+              drawBoard();
+              _aiTimer = setTimeout(() => {
+                aiMove();
+              }, AI_DELAY);
+            }
+          }
+          break;
+        }
+        // Escape or M toggles AI mode (only on empty board)
+        case 'Escape': case 'm': case 'M': {
+          if (board.every(c => c === '')) {
+            aiMode = aiMode === 'terminator' ? 'doofus' : 'terminator';
+            drawBoard();
+          }
+          break;
+        }
+      }
+    } catch (_) { /* keyboard handler failure — game continues */ }
+  };
+
+  canvas.addEventListener('keydown', keyHandler);
 }
 
 // ── Resize handling ────────────────────────────────────
