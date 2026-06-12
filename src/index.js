@@ -41,13 +41,12 @@ const GRID = 3;
 let TOP_MARGIN, BOTTOM_PAD, SIDE_MARGIN, GRID_W, GRID_H, CELL_W, CELL_H, LINE_W;
 
 function computeLayout() {
-  canvas.style.width = canvas.getBoundingClientRect().width + 'px';
-  canvas.style.height = canvas.getBoundingClientRect().height + 'px';
-  // Keep internal resolution fixed to avoid resize flicker
-  // Layout is always computed from W × H
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
 
-  const cw = W;
-  const ch = H;
+  const cw = canvas.width;
+  const ch = canvas.height;
 
   // margins scale with canvas
   const sidePad = cw * 0.05;
@@ -172,8 +171,8 @@ function init() {
   };
 
   _drawBackground = function () {
-    const cw = W;
-    const ch = H;
+    const cw = canvas.width;
+    const ch = canvas.height;
     const grad = ctx.createLinearGradient(0, 0, cw, ch);
     grad.addColorStop(0, COLORS.bg1);
     grad.addColorStop(0.5, COLORS.bg2);
@@ -276,8 +275,8 @@ function init() {
   };
 
   _drawBoard = function () {
-    const cw = W;
-    const ch = H;
+    const cw = canvas.width;
+    const ch = canvas.height;
 
     _drawBackground();
     _drawGlassPanel();
@@ -442,13 +441,14 @@ function init() {
 
   _clickHandler = function (e) {
     const rect = canvas.getBoundingClientRect();
-    const scaleX = W / rect.width;
-    const scaleY = H / rect.height;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     const px = (e.clientX - rect.left) * scaleX;
     const py = (e.clientY - rect.top) * scaleY;
 
     const btn = state.btn;
     if (btn && px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
+      clearTimeout(_aiTimer);
       _aiTimer = null;
       board = Array(9).fill('');
       currentPlayer = 'X';
@@ -504,6 +504,7 @@ function init() {
 
   // ── Context loss recovery ──────────────────────────────
   canvas.addEventListener('webglcontextrestored', () => {
+    canvas.removeEventListener('touchend', _touchHandler, { passive: false });
     init();
   });
 
@@ -521,12 +522,13 @@ window.addEventListener('resize', () => {
 });
 
 // ── Touch support ──────────────────────────────────────
-canvas.addEventListener('touchend', (e) => {
+const _touchHandler = (e) => {
   e.preventDefault();
   const touch = e.changedTouches[0];
   if (!touch || !state.handler) return;
   state.handler({ clientX: touch.clientX, clientY: touch.clientY });
-}, { passive: false });
+};
+canvas.addEventListener('touchend', _touchHandler, { passive: false });
 
 // ── Entry ──────────────────────────────────────────────
 init();
