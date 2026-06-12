@@ -35,7 +35,7 @@ function playClick() {
     gain.connect(audioCtx.destination);
     osc.type = 'sine';
     osc.frequency.setValueAtTime(AUDIO_FREQ_HIGH, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueTime(AUDIO_FREQ_LOW, audioCtx.currentTime + AUDIO_DUR);
+    osc.frequency.exponentialRampToValueAtTime(AUDIO_FREQ_LOW, audioCtx.currentTime + AUDIO_DUR);
     gain.gain.setValueAtTime(AUDIO_VOL, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + AUDIO_DUR);
     osc.start(audioCtx.currentTime);
@@ -81,9 +81,12 @@ const MODE_FONT_FRAC = 0.07;
 const AI_DELAY = 300;
 
 // ── Layout computation ─────────────────────────────────
+function cycleAiMode() {
+  aiMode = aiMode === 'terminator' ? 'doofus' : aiMode === 'doofus' ? 'bringit' : 'terminator';
+}
+
 function computeLayout() {
   const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
   const cw = rect.width;
   const ch = rect.height;
   if (cw <= 0 || ch <= 0) return;
@@ -465,8 +468,12 @@ function updateStatus() {
   } else if (board.every((c) => c !== '')) {
     status = 'draw';
     announce("Game over. It's a draw!");
+    focusedCell = null;
   } else {
     announce(`Player ${currentPlayer === 'X' ? 'O' : 'X'}'s turn`);
+  }
+  if (result) {
+    focusedCell = null;
   }
 }
 
@@ -475,7 +482,7 @@ function aiMove() {
   const empty = getEmptyCells(board);
   if (empty.length === 0) return;
 
-  let bestMove;
+  let bestMove = empty[0];
   if (aiMode === 'doofus') {
     bestMove = empty[Math.floor(Math.random() * empty.length)];
   } else if (aiMode === 'bringit') {
@@ -511,7 +518,9 @@ function aiMove() {
   board[bestMove] = 'O';
   playClick();
   updateStatus();
-  currentPlayer = 'X';
+  if (status === 'playing') {
+    currentPlayer = 'X';
+  }
   aiThinking = false;
   drawBoard();
 }
@@ -529,7 +538,6 @@ function placePiece(idx) {
 function triggerAI() {
   if (status === 'playing' && currentPlayer === 'O') {
     aiThinking = true;
-    drawBoard();
     _aiTimer = setTimeout(() => {
       aiMove();
     }, AI_DELAY);
@@ -580,7 +588,7 @@ function init() {
       const modeBtn = state.modeBtn;
       if (modeBtn && px >= modeBtn.x && px <= modeBtn.x + modeBtn.w && py >= modeBtn.y && py <= modeBtn.y + modeBtn.h) {
         if (board.every(c => c === '')) {
-          aiMode = aiMode === 'terminator' ? 'doofus' : aiMode === 'doofus' ? 'bringit' : 'terminator';
+          cycleAiMode();
           drawBoard();
         }
         return;
@@ -660,7 +668,7 @@ function init() {
         // Escape or M toggles AI mode (only on empty board)
         case 'Escape': case 'm': case 'M': {
           if (board.every(c => c === '')) {
-            aiMode = aiMode === 'terminator' ? 'doofus' : aiMode === 'doofus' ? 'bringit' : 'terminator';
+            cycleAiMode();
             drawBoard();
           }
           break;
@@ -674,6 +682,9 @@ function init() {
   }
   state.keyHandler = keyHandler;
   canvas.addEventListener('keydown', keyHandler);
+
+  // Focus canvas for keyboard controls
+  canvas.focus();
 }
 
 // ── Resize handling ────────────────────────────────────
