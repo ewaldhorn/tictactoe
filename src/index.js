@@ -413,6 +413,11 @@ function drawO(cx, cy, size) {
 
 // ── UI rendering (sets state.btn / state.modeBtn) ─────
 function drawUI() {
+  // Auto-expire disabled flash
+  if (modeBtnFlashUntil > Date.now()) {
+    modeBtnFlashUntil = 0;
+  }
+
   const cw = canvas.width;
   const ch = canvas.height;
   const uiY = TOP_MARGIN + GRID_H + UI_TEXT_PAD + 5;
@@ -465,6 +470,7 @@ function drawUI() {
   state.btn = { x: btnX, y: btnY, w: btnW, h: btnH };
 
   // ── AI Mode Selector (bottom-right) ──
+  const modeEnabled = board.every(c => c === '');
   const modeLabel = aiMode === 'terminator' ? 'Terminator' : aiMode === 'bringit' ? 'Bring it on' : 'Doofus';
   const modeText = 'AI MODE: ' + modeLabel;
   const modeFontSize = Math.max(11, Math.min(14, CELL_W * MODE_FONT_FRAC));
@@ -476,8 +482,15 @@ function drawUI() {
   const modeY = ch - BOTTOM_PAD + modeH / 2 + 10;
 
   ctx.save();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-  ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+  if (modeEnabled) {
+    // Enabled: golden accent border, normal colors
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+  } else {
+    // Disabled: muted dark background, no golden border
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  }
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(modeX + MODE_RADIUS, modeY);
@@ -490,10 +503,30 @@ function drawUI() {
   ctx.stroke();
   ctx.restore();
 
-  ctx.fillStyle = COLORS.btnText;
+  ctx.fillStyle = modeEnabled ? COLORS.btnText : 'rgba(255, 255, 255, 0.3)';
   ctx.font = `${modeFontSize}px monospace`;
   ctx.textAlign = 'center';
   ctx.fillText(modeText, modeX + modeW / 2, modeY + modeH * 0.65);
+
+  // Disabled flash: brief red "X" on top of the button
+  if (!modeEnabled && modeBtnFlashUntil > Date.now()) {
+    const flashAlpha = Math.min(1, (modeBtnFlashUntil - Date.now()) / 200);
+    ctx.save();
+    ctx.globalAlpha = flashAlpha;
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    const cx = modeX + modeW / 2;
+    const cy = modeY + modeH * 0.65;
+    const s = Math.max(8, modeH * 0.3);
+    ctx.beginPath();
+    ctx.moveTo(cx - s, cy - s);
+    ctx.lineTo(cx + s, cy + s);
+    ctx.moveTo(cx + s, cy - s);
+    ctx.lineTo(cx - s, cy + s);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   state.modeBtn = { x: modeX, y: modeY, w: modeW, h: modeH };
 }
@@ -637,6 +670,7 @@ function triggerAI() {
 
 // ── Initialization ──────────────────────────────────────
 let _aiTimer = 0; // 0 = no timer pending
+let modeBtnFlashUntil = 0; // timestamp until which to show disabled flash
 
 function init() {
   clearTimeout(_aiTimer);
@@ -661,6 +695,7 @@ function init() {
       if (btn && px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
         clearTimeout(_aiTimer);
         _aiTimer = 0;
+        modeBtnFlashUntil = 0;
         board = Array(9).fill('');
         currentPlayer = 'X';
         status = 'playing';
@@ -680,6 +715,10 @@ function init() {
       if (modeBtn && px >= modeBtn.x && px <= modeBtn.x + modeBtn.w && py >= modeBtn.y && py <= modeBtn.y + modeBtn.h) {
         if (board.every(c => c === '')) {
           cycleAiMode();
+          drawBoard();
+        } else {
+          // Button disabled — brief visual feedback
+          modeBtnFlashUntil = Date.now() + 500;
           drawBoard();
         }
         return;
