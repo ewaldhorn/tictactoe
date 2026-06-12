@@ -42,11 +42,13 @@ let TOP_MARGIN, BOTTOM_PAD, SIDE_MARGIN, GRID_W, GRID_H, CELL_W, CELL_H, LINE_W;
 
 function computeLayout() {
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width;
-  canvas.height = rect.height;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
 
-  const cw = canvas.width;
-  const ch = canvas.height;
+  const cw = rect.width;
+  const ch = rect.height;
 
   // margins scale with canvas
   const sidePad = cw * 0.05;
@@ -441,10 +443,8 @@ function init() {
 
   _clickHandler = function (e) {
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const px = (e.clientX - rect.left) * scaleX;
-    const py = (e.clientY - rect.top) * scaleY;
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
 
     const btn = state.btn;
     if (btn && px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
@@ -504,7 +504,7 @@ function init() {
 
   // ── Context loss recovery ──────────────────────────────
   canvas.addEventListener('webglcontextrestored', () => {
-    canvas.removeEventListener('touchend', _touchHandler, { passive: false });
+    _audioCtx = null;
     init();
   });
 
