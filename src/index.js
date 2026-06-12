@@ -599,17 +599,19 @@ function updateStatus() {
     winner = result.winner;
     winCells = result.cells;
     announce(`Game over. ${winner} wins!`);
+    currentPlayer = winner; // keep current player in sync with the winner
     if (winner === 'X') playWinSound();
     else playLoseSound();
   } else if (board.every((c) => c !== '')) {
     status = 'draw';
     announce("Game over. It's a draw!");
     playDrawSound();
-    focusedCell = null;
   } else {
     announce(`${currentPlayer === 'X' ? 'O' : 'X'} goes next`);
   }
-  if (result) {
+
+  // Shared cleanup for any game-over condition
+  if (result || board.every((c) => c !== '')) {
     focusedCell = null;
   }
 }
@@ -689,7 +691,6 @@ let modeBtnFlashUntil = 0; // timestamp until which to show disabled flash
 
 function init() {
   clearTimeout(_aiTimer);
-  _aiTimer = 0;
   computeLayout();
 
   // Full render (rebuilds state.btn, state.modeBtn)
