@@ -1,11 +1,11 @@
 const canvas = document.getElementById('canvas');
 if (!canvas) {
-  document.body.innerHTML = '<p style="color:#fff;text-align:center;padding:40px;">Canvas element not found.</p>';
+  document.body.innerHTML = '<p class="error-msg">Canvas element not found.</p>';
   throw new Error('Canvas element not found');
 }
 const ctx = canvas.getContext('2d');
 if (!ctx) {
-  document.body.innerHTML = '<p style="color:#fff;text-align:center;padding:40px;">2D canvas context not supported.</p>';
+  document.body.innerHTML = '<p class="error-msg">2D canvas context not supported.</p>';
   throw new Error('Could not get 2D context');
 }
 
