@@ -679,20 +679,16 @@ function triggerAI() {
 }
 
 // ── Initialization ──────────────────────────────────────
+const MODE_BTN_FLASH_MS = 500;
+
 let _aiTimer = 0; // 0 = no timer pending
 let modeBtnFlashUntil = 0; // timestamp until which to show disabled flash
 
 // ── Resize handling ────────────────────────────────────
-let _initialised = false;
 let resizeTimer = 0; // 0 is falsy — clearTimeout(0) is a no-op
 
 function init() {
-  if (_initialised) {
-    // Re-init (e.g. from resize): don't steal focus
-  } else {
-    _initialised = true;
-    try { canvas.focus(); } catch (_) {}
-  }
+  try { canvas.focus(); } catch (_) {}
 
   clearTimeout(_aiTimer);
   computeLayout();
@@ -741,7 +737,7 @@ function init() {
           drawBoard();
         } else {
           // Button disabled — brief visual feedback
-          modeBtnFlashUntil = Date.now() + 500;
+          modeBtnFlashUntil = Date.now() + MODE_BTN_FLASH_MS;
           drawBoard();
         }
         return;
@@ -768,14 +764,14 @@ function init() {
   if (state._touchHandler) {
     canvas.removeEventListener('touchend', state._touchHandler);
   }
-  const _touchHandler = (e) => {
+  const touchHandler = (e) => {
     e.preventDefault();
     const touch = e.changedTouches[0];
     if (!touch || !state.handler) return;
     state.handler({ clientX: touch.clientX, clientY: touch.clientY });
   };
-  canvas.addEventListener('touchend', _touchHandler, { passive: false });
-  state._touchHandler = _touchHandler;
+  canvas.addEventListener('touchend', touchHandler, { passive: false });
+  state._touchHandler = touchHandler;
 
   // ── Keyboard support ──────────────────────────────────
   const keyHandler = (e) => {
