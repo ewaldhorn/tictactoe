@@ -447,12 +447,26 @@ function drawUI() {
 
   ctx.fillText(msg, cw / 2, uiY);
 
-  // ── Reset button ──
+  // ── Button row (Reset + AI Mode, centered, 20px gap) ──
   const btnY = uiY + UI_BTN_PAD;
   const btnW = Math.min(BTN_MAX_W, cw * 0.15);
   const btnH = Math.max(30, ch * 0.05);
-  const btnX = cw / 2 - btnW / 2;
 
+  const modeEnabled = board.every(c => c === '');
+  const modeLabel = aiMode === 'terminator' ? 'Terminator' : aiMode === 'bringit' ? 'Bring it on' : 'Doofus';
+  const modeText = 'AI MODE: ' + modeLabel;
+  const modeFontSize = Math.max(11, Math.min(14, CELL_W * MODE_FONT_FRAC));
+  const modeTextW = ctx.measureText(modeText).width;
+  const modeW = modeTextW + MODE_PAD_X * 2;
+  const modeH = btnH; // align heights
+
+  const btnGap = Math.max(0, Math.min(20, cw - btnW - modeW));
+  const totalWidth = btnW + btnGap + modeW;
+  const rowStartX = Math.max(SIDE_MARGIN, (cw - totalWidth) / 2);
+  const btnX = rowStartX;
+  const modeX = btnX + btnW + btnGap;
+
+  // ── Reset button ──
   ctx.save();
   ctx.fillStyle = COLORS.btnBg;
   ctx.strokeStyle = COLORS.btnBorder;
@@ -471,22 +485,11 @@ function drawUI() {
   ctx.fillStyle = COLORS.btnText;
   ctx.font = `${btnFontSize}px monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText('Reset', cw / 2, btnY + btnH * 0.65);
+  ctx.fillText('Reset', btnX + btnW / 2, btnY + btnH * 0.65);
 
   state.btn = { x: btnX, y: btnY, w: btnW, h: btnH };
 
-  // ── AI Mode Selector (bottom-right) ──
-  const modeEnabled = board.every(c => c === '');
-  const modeLabel = aiMode === 'terminator' ? 'Terminator' : aiMode === 'bringit' ? 'Bring it on' : 'Doofus';
-  const modeText = 'AI MODE: ' + modeLabel;
-  const modeFontSize = Math.max(11, Math.min(14, CELL_W * MODE_FONT_FRAC));
-  const modeTextW = ctx.measureText(modeText).width;
-  const modeW = modeTextW + MODE_PAD_X * 2;
-  const modeH = Math.max(26, ch * 0.04);
-
-  const modeX = cw - SIDE_MARGIN - modeW;
-  const modeY = ch - BOTTOM_PAD + modeH / 2 + 10;
-
+  // ── AI Mode button ──
   ctx.save();
   if (modeEnabled) {
     // Enabled: golden accent border, normal colors
@@ -499,11 +502,11 @@ function drawUI() {
   }
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(modeX + MODE_RADIUS, modeY);
-  ctx.arcTo(modeX + modeW, modeY, modeX + modeW, modeY + modeH, MODE_RADIUS);
-  ctx.arcTo(modeX + modeW, modeY + modeH, modeX, modeY + modeH, MODE_RADIUS);
-  ctx.arcTo(modeX, modeY + modeH, modeX, modeY, MODE_RADIUS);
-  ctx.arcTo(modeX, modeY, modeX + modeW, modeY, MODE_RADIUS);
+  ctx.moveTo(modeX + MODE_RADIUS, btnY);
+  ctx.arcTo(modeX + modeW, btnY, modeX + modeW, btnY + modeH, MODE_RADIUS);
+  ctx.arcTo(modeX + modeW, btnY + modeH, modeX, btnY + modeH, MODE_RADIUS);
+  ctx.arcTo(modeX, btnY + modeH, modeX, btnY, MODE_RADIUS);
+  ctx.arcTo(modeX, btnY, modeX + modeW, btnY, MODE_RADIUS);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
@@ -512,7 +515,7 @@ function drawUI() {
   ctx.fillStyle = modeEnabled ? COLORS.btnText : 'rgba(255, 255, 255, 0.3)';
   ctx.font = `${modeFontSize}px monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText(modeText, modeX + modeW / 2, modeY + modeH * 0.65);
+  ctx.fillText(modeText, modeX + modeW / 2, btnY + modeH * 0.65);
 
   // Disabled flash: brief red "X" on top of the button
   if (!modeEnabled && modeBtnFlashUntil > Date.now()) {
@@ -523,7 +526,7 @@ function drawUI() {
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     const cx = modeX + modeW / 2;
-    const cy = modeY + modeH * 0.65;
+    const cy = btnY + modeH * 0.65;
     const s = Math.max(8, modeH * 0.3);
     ctx.beginPath();
     ctx.moveTo(cx - s, cy - s);
@@ -534,7 +537,7 @@ function drawUI() {
     ctx.restore();
   }
 
-  state.modeBtn = { x: modeX, y: modeY, w: modeW, h: modeH };
+  state.modeBtn = { x: modeX, y: btnY, w: modeW, h: modeH };
 }
 
 // ── Piece rendering ────────────────────────────────────
