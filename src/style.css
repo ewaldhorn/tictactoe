@@ -17,7 +17,6 @@
   --h1-letter-spacing: 0.05em;
   --mobile-h1-font-size: 1rem;
   --mobile-padding: 12px;
-  --mobile-breakpoint: 480px;
   --landscape-breakpoint: 769px;
 }
 
@@ -101,8 +100,8 @@ canvas:focus {
   padding: 40px;
 }
 
-/* Mobile */
-@media (max-width: var(--mobile-breakpoint)) {
+/* Mobile / tablet portrait */
+@media (max-width: calc(var(--landscape-breakpoint) - 1px)) {
   header h1 { font-size: var(--mobile-h1-font-size); }
   header, .site-footer { padding: var(--mobile-padding) 0; }
 }
